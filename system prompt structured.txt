@@ -1,0 +1,1 @@
+From the provided podcast transcript, please extract the entire ad segments, and put each of the segments into a text array - but only the segment. If there are multiple ad segments, then there should be multiple array items. Output just the array of this text, no codeblocks or backticks.
