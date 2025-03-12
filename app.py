@@ -2,6 +2,7 @@ import requests
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -11,7 +12,14 @@ FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 print("GEMINI_API_KEY from .env ", GEMINI_API_KEY)
 print("FIREWORKS_API_KEY from .env ", FIREWORKS_API_KEY)
 
-client = OpenAI(api_key="", base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+client = OpenAI(
+    api_key="",
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
+
+input_file = "openai.mp3"
+# output file should be the same as input file but with _edited appended to the name before the extension
+output_file = input_file.split(".")[0] + "_edited." + input_file.split(".")[1]
 
 def transcribe(filePath):
     with open(filePath, "rb") as file:
@@ -35,8 +43,8 @@ def transcribe(filePath):
         dict_response = response.json()
         text = dict_response["text"]
         segments = dict_response["segments"]
-        
-        # Clean the words data by removing unwanted fields
+
+        # cleaning the transcript json data by removing keys like "confidence" and "language" and "hallucination_score"
         words = dict_response["words"]
         cleaned_words = []
         for word in words:
@@ -46,29 +54,35 @@ def transcribe(filePath):
                 "end": word["end"]
             }
             cleaned_words.append(cleaned_word)
-        
+
         return text, segments, cleaned_words
     else:
-        return(f"Error: {response.status_code}", response.text)
+        return (f"Error: {response.status_code}", response.text)
 
-transcription = transcribe("openai.mp3")
-# print(transcription[0])
-transcript_data = transcription[2]
 
-def processGemini(transcriptionText):
+singleSegmentPrompt = "From the provided podcast transcript, please output the entire first advertisement segment. Output it verbatim. DO NOT OUTPUT IT IN ANY CODEBLOCKS OR BACKTICKS OR ANYTHING, JUST THE SEGMENT AS YOUR RESPONSE. This is going into a safety-critical system so it cannot have any code blocks or backticks. Do not change the segment case, punctuation or capitalization."
+multipleSegmentsPrompt = "From the provided podcast transcript, please output all of the advertisement segments. Output them verbatim. Output them as an array of strings with each string being a segment. If a segment is repeated exactly in another part of the transcript, only output it once. DO NOT OUTPUT THEM IN ANY CODEBLOCKS OR BACKTICKS OR ANYTHING, JUST THE ARRAY OF SEGMENTS AS YOUR RESPONSE. This is going into a safety-critical system so it cannot have any code blocks or backticks. Do not change the segments' case, punctuation or capitalization."
+def geminiGetSegments(transcriptionText):
+    """
+    Get the first advertisement segment from the transcription using Gemini API.
+
+    Args:
+        transcriptionText (str): The transcription text to extract the advertisement segment from.
+
+    Returns:
+        str: The extracted advertisement segment.
+    """
+
     response = client.chat.completions.create(
         model="gemini-2.0-flash",
         n=1,
         messages=[
-            # {"role": "system", "content": "From the provided podcast transcript, please extract the entire ad segments, and put each of the segments into a text array - but only the segment. If there are multiple ad segments, then there should be multiple array items. Output just the array of this text, no codeblocks or backticks."},
-            {"role": "system", "content": "From the provided podcast transcript, please output the entire first advertisement segment. Output it verbatim. DO NOT OUTPUT IT IN ANY CODEBLOCKS OR BACKTICKS OR ANYTHING, JUST THE SEGMENT AS YOUR RESPONSE. This is going into a safety-critical system so it cannot have any code blocks or backticks. Do not change the segment case, punctuation or capitalization."},
-            {
-                "role": "user",
-                "content": transcriptionText
-            }
+            {"role": "system", "content": multipleSegmentsPrompt},
+            {"role": "user", "content": transcriptionText}
         ]
     )
     return response.choices[0].message.content
+
 
 
 def generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove):
@@ -76,44 +90,45 @@ def generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove):
     Generate an FFmpeg command to remove multiple segments from an audio file.
     
     Args:
-        input_file (str): Path to the input audio file
-        output_file (str): Path to the output audio file
+        input_file (str): Path to the input audio file.
+        output_file (str): Path to the output audio file.
         segments_to_remove (list): List of tuples (start_time, end_time) in seconds
-                                 representing segments to remove
+                                   representing segments to remove.
         
     Returns:
-        str: FFmpeg command string ready to be executed
+        str: FFmpeg command string ready to be executed.
     """
+
     # Validate inputs
     if not input_file or not output_file:
         raise ValueError("Input and output file paths must be provided")
-    
+
     if not segments_to_remove or not isinstance(segments_to_remove, list):
         raise ValueError("segments_to_remove must be a non-empty list of (start, end) tuples")
-    
+
     # Sort segments by start time to ensure proper processing
     segments_to_remove.sort(key=lambda x: x[0])
-    
+
     # Validate each segment
     for i, (start, end) in enumerate(segments_to_remove):
         if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
             raise ValueError(f"Segment {i}: Start and end times must be numbers")
-        
+
         if start >= end:
             raise ValueError(f"Segment {i}: Start time ({start}) must be less than end time ({end})")
-        
+
         # Check for overlapping segments
         if i > 0 and start < segments_to_remove[i-1][1]:
             raise ValueError(f"Segments {i-1} and {i} overlap or are not in ascending order")
-    
+
     # Generate filter_complex parts
     filter_parts = []
     segment_labels = []
-    
+
     # First segment (from 0 to first cut)
     filter_parts.append(f"[0:a]atrim=0:{segments_to_remove[0][0]}[s0]")
     segment_labels.append("[s0]")
-    
+
     # Middle segments (between cuts)
     for i in range(len(segments_to_remove) - 1):
         current_end = segments_to_remove[i][1]
@@ -121,61 +136,43 @@ def generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove):
         if current_end < next_start:  # Only add if there's content between segments
             filter_parts.append(f"[0:a]atrim={current_end}:{next_start}[s{i+1}]")
             segment_labels.append(f"[s{i+1}]")
-    
+
     # Last segment (from last cut to end)
     filter_parts.append(f"[0:a]atrim=start={segments_to_remove[-1][1]}[s{len(segments_to_remove)}]")
     segment_labels.append(f"[s{len(segments_to_remove)}]")
-    
     # Concat filter
     concat_filter = f"{''.join(segment_labels)}concat=n={len(segment_labels)}:v=0:a=1[out]"
-    
     # Build the complete filter_complex
     filter_complex = ";".join(filter_parts) + ";" + concat_filter
-    
     # Create the FFmpeg command
     command = f'ffmpeg -i "{input_file}" -filter_complex "{filter_complex}" -map "[out]" "{output_file}"'
-    
     return command
 
 
-# Example usage
-input_file = "archer.mp3"
-output_file = "archerClean.mp3"
 
-segments_to_remove = [
-    (4.813, 9.407),
-    (9.867, 10.226),
-    (11.864, 12.464)
-]
-
-# cmd = generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove)
-# print(cmd)
-
-
-def find_phrase_timestamps(transcript_data, phrase):
+def find_phrases_timestamps(transcript_data, phrases):
     """
-    Find the start and end timestamps for a specific phrase in a transcript.
+    Find the start and end timestamps for all occurrences of each phrase.
     
     Args:
         transcript_data (list): List of dictionaries containing word-level transcript data
-                               with 'word', 'start', and 'end' keys
-        phrase (str): The phrase to search for
+                                with 'word', 'start', and 'end' keys.
+        phrases (str or list): A single phrase or a list of phrases to search for.
         
     Returns:
-        tuple: (start_time, end_time) of the matched phrase, or (None, None) if not found
+        list: A list of tuples (start_time, end_time) for each matched occurrence.
+              If no matches are found, returns an empty list.
     """
-    if not transcript_data or not phrase:
-        return None, None
+    if not transcript_data or not phrases:
+        return []
     
-    # Clean and normalize the phrase for better matching
-    target_words = [word.strip().lower().rstrip('.,:;!?') for word in phrase.split()]
-    if not target_words:
-        return None, None
+    # Ensure phrases is a list
+    if isinstance(phrases, str):
+        phrases = [phrases]
     
-    # Prepare the transcript words
+    # Prepare the transcript words with normalized text
     transcript_words = []
     for item in transcript_data:
-        # clean each transcript word similar to how the target phrase was cleaned
         cleaned_word = item['word'].strip().lower().rstrip('.,:;!?')
         transcript_words.append({
             'word': cleaned_word,
@@ -183,37 +180,66 @@ def find_phrase_timestamps(transcript_data, phrase):
             'end': item['end']
         })
     
-    # search for sequence
-    for i in range(len(transcript_words) - len(target_words) + 1):
-        match = True
-        for j, target_word in enumerate(target_words):
-            if i + j >= len(transcript_words) or transcript_words[i + j]['word'] != target_word:
-                match = False
-                break
-        
-        if match:
-            # Found the sequence
-            start_time = transcript_words[i]['start']
-            end_time = transcript_words[i + len(target_words) - 1]['end']
-            return start_time, end_time
+    results = []
+    total_words = len(transcript_words)
     
-    # Phrase not found
-    return None, None
+    # For each phrase, find all occurrences in the transcript
+    for phrase in phrases:
+        if not phrase:
+            continue
+        
+        target_words = [w.strip().lower().rstrip('.,:;!?') for w in phrase.split()]
+        target_length = len(target_words)
+        
+        # Slide over transcript_words to search for the sequence
+        for i in range(total_words - target_length + 1):
+            match = True
+            for j in range(target_length):
+                if transcript_words[i+j]['word'] != target_words[j]:
+                    match = False
+                    break
+            if match:
+                start_time = transcript_words[i]['start']
+                end_time = transcript_words[i+target_length-1]['end']
+                results.append((start_time, end_time))
+    
+    return results
 
-phrase = processGemini(transcription[0])
-start_time, end_time = find_phrase_timestamps(transcript_data, phrase)
 
-if start_time is not None and end_time is not None:
-    print(f"Phrase '{phrase}' found from {start_time}s to {end_time}s")
+# getting actual transcription to pass the full text to gemini to extract the advertisement segments
+# and pass just the words to find the timestamps of the segments extracted by gemini
+transcription = transcribe(input_file)
+transcript_words = transcription[2]
+
+# gemini returning the extracted advertisement segments as a string
+# need to parse it with json.loads so it becomes an actual python list
+phrases_str = geminiGetSegments(transcription[0])
+try:
+    phrases = json.loads(phrases_str)
+except json.JSONDecodeError as e:
+    print("Error parsing the Gemini response:", e)
+    phrases = [] # Fallback to empty list if parsing fails
+
+
+print("phrases: ", phrases)
+print("type(phrases): ", type(phrases))
+
+
+# phrases array of segments is passed to find_phrases_timestamps to find the start and end timestamps of the segments
+matches = find_phrases_timestamps(transcript_words, phrases)
+print("matches: ", matches)
+
+if matches:
+    for start_time, end_time in matches:
+        print(f"Found phrase from {start_time}s to {end_time}s")
 else:
-    print(f"Phrase '{phrase}' not found in transcript")
+    print("No provided phrases were found in transcript.")
 
-# Example usage of the FFmpeg command
-input_file = "openai.mp3"
-output_file = "openaiClean.mp3"
+# Remove all found segments
+segments_to_remove = matches  # matches is a list of (start, end) tuples.
 
-segments_to_remove = [(start_time, end_time)]
 
+# generating the ffmpeg command to remove the segments from the audio file
 cmd = generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove)
 print("Generated FFmpeg command:")
 print(cmd)
