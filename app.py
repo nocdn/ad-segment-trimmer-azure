@@ -1,6 +1,6 @@
 import requests
-from openai import OpenAI
 import os
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,13 +8,16 @@ load_dotenv()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 
-client = OpenAI(api_key=GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+print("GEMINI_API_KEY from .env ", GEMINI_API_KEY)
+print("FIREWORKS_API_KEY from .env ", FIREWORKS_API_KEY)
+
+client = OpenAI(api_key="", base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
 
 def transcribe(filePath):
     with open(filePath, "rb") as file:
         response = requests.post(
             "https://audio-prod.us-virginia-1.direct.fireworks.ai/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer {FIREWORKS_API_KEY}"},
+            headers={"Authorization": f"Bearer "},
             files={"file": file},
             data={
                 "vad_model": "silero",
@@ -48,15 +51,17 @@ def transcribe(filePath):
     else:
         return(f"Error: {response.status_code}", response.text)
 
-# transcription = transcribe("archer.mp3")
-# print(transcription[2])
+transcription = transcribe("openai.mp3")
+# print(transcription[0])
+transcript_data = transcription[2]
 
 def processGemini(transcriptionText):
     response = client.chat.completions.create(
         model="gemini-2.0-flash",
         n=1,
         messages=[
-            {"role": "system", "content": "From the provided podcast transcript, please extract the entire ad segments, and put each of the segments into a text array - but only the segment. If there are multiple ad segments, then there should be multiple array items. Output just the array of this text, no codeblocks or backticks."},
+            # {"role": "system", "content": "From the provided podcast transcript, please extract the entire ad segments, and put each of the segments into a text array - but only the segment. If there are multiple ad segments, then there should be multiple array items. Output just the array of this text, no codeblocks or backticks."},
+            {"role": "system", "content": "From the provided podcast transcript, please output the entire first advertisement segment. Output it verbatim. DO NOT OUTPUT IT IN ANY CODEBLOCKS OR BACKTICKS OR ANYTHING, JUST THE SEGMENT AS YOUR RESPONSE. This is going into a safety-critical system so it cannot have any code blocks or backticks. Do not change the segment case, punctuation or capitalization."},
             {
                 "role": "user",
                 "content": transcriptionText
@@ -170,16 +175,15 @@ def find_phrase_timestamps(transcript_data, phrase):
     # Prepare the transcript words
     transcript_words = []
     for item in transcript_data:
-        # Clean each transcript word similar to how we cleaned the target phrase
+        # clean each transcript word similar to how the target phrase was cleaned
         cleaned_word = item['word'].strip().lower().rstrip('.,:;!?')
         transcript_words.append({
             'word': cleaned_word,
             'start': item['start'],
-            'end': item['end'],
-            'original': item
+            'end': item['end']
         })
     
-    # Search for the sequence
+    # search for sequence
     for i in range(len(transcript_words) - len(target_words) + 1):
         match = True
         for j, target_word in enumerate(target_words):
@@ -196,205 +200,23 @@ def find_phrase_timestamps(transcript_data, phrase):
     # Phrase not found
     return None, None
 
-
-# Example usage
-transcript_data = [
-  {
-    "word": "People",
-    "start": 0.098,
-    "end": 0.378
-  },
-  {
-    "word": "sometimes",
-    "start": 0.378,
-    "end": 0.917
-  },
-  {
-    "word": "strategically",
-    "start": 0.917,
-    "end": 1.696
-  },
-  {
-    "word": "modify",
-    "start": 1.696,
-    "end": 2.216
-  },
-  {
-    "word": "their",
-    "start": 2.216,
-    "end": 2.375
-  },
-  {
-    "word": "behaviour",
-    "start": 2.375,
-    "end": 2.855
-  },
-  {
-    "word": "to",
-    "start": 2.855,
-    "end": 2.975
-  },
-  {
-    "word": "please",
-    "start": 2.975,
-    "end": 3.374
-  },
-  {
-    "word": "evaluators.",
-    "start": 3.374,
-    "end": 4.193
-  },
-  {
-    "word": "Consider",
-    "start": 4.813,
-    "end": 5.292
-  },
-  {
-    "word": "a",
-    "start": 5.292,
-    "end": 5.332
-  },
-  {
-    "word": "politician",
-    "start": 5.332,
-    "end": 5.971
-  },
-  {
-    "word": "who",
-    "start": 5.971,
-    "end": 6.111
-  },
-  {
-    "word": "pretends",
-    "start": 6.111,
-    "end": 6.551
-  },
-  {
-    "word": "to",
-    "start": 6.551,
-    "end": 6.67
-  },
-  {
-    "word": "be",
-    "start": 6.67,
-    "end": 6.81
-  },
-  {
-    "word": "aligned",
-    "start": 6.81,
-    "end": 7.19
-  },
-  {
-    "word": "with",
-    "start": 7.19,
-    "end": 7.33
-  },
-  {
-    "word": "constituents",
-    "start": 7.33,
-    "end": 8.129
-  },
-  {
-    "word": "to",
-    "start": 8.129,
-    "end": 8.269
-  },
-  {
-    "word": "secure",
-    "start": 8.269,
-    "end": 8.728
-  },
-  {
-    "word": "their",
-    "start": 8.728,
-    "end": 8.888
-  },
-  {
-    "word": "votes,",
-    "start": 8.888,
-    "end": 9.407
-  },
-  {
-    "word": "or",
-    "start": 9.707,
-    "end": 9.827
-  },
-  {
-    "word": "a",
-    "start": 9.827,
-    "end": 9.867
-  },
-  {
-    "word": "job",
-    "start": 9.867,
-    "end": 10.226
-  },
-  {
-    "word": "applicant",
-    "start": 10.226,
-    "end": 10.686
-  },
-  {
-    "word": "who",
-    "start": 10.686,
-    "end": 10.746
-  },
-  {
-    "word": "fakes",
-    "start": 10.746,
-    "end": 11.085
-  },
-  {
-    "word": "passion",
-    "start": 11.085,
-    "end": 11.525
-  },
-  {
-    "word": "about",
-    "start": 11.525,
-    "end": 11.824
-  },
-  {
-    "word": "a",
-    "start": 11.824,
-    "end": 11.864
-  },
-  {
-    "word": "potential",
-    "start": 11.864,
-    "end": 12.464
-  },
-  {
-    "word": "employer",
-    "start": 12.464,
-    "end": 12.963
-  },
-  {
-    "word": "to",
-    "start": 12.963,
-    "end": 13.163
-  },
-  {
-    "word": "get",
-    "start": 13.163,
-    "end": 13.463
-  },
-  {
-    "word": "a",
-    "start": 13.463,
-    "end": 13.502
-  },
-  {
-    "word": "job.",
-    "start": 13.502,
-    "end": 13.942
-  }
-]
-
-phrase = "to please evaluators."
+phrase = processGemini(transcription[0])
 start_time, end_time = find_phrase_timestamps(transcript_data, phrase)
 
 if start_time is not None and end_time is not None:
     print(f"Phrase '{phrase}' found from {start_time}s to {end_time}s")
 else:
     print(f"Phrase '{phrase}' not found in transcript")
+
+# Example usage of the FFmpeg command
+input_file = "openai.mp3"
+output_file = "openaiClean.mp3"
+
+segments_to_remove = [(start_time, end_time)]
+
+cmd = generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove)
+print("Generated FFmpeg command:")
+print(cmd)
+
+print("Executing FFmpeg command:")
+os.system(cmd)
