@@ -13,13 +13,13 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Get keys from .env (or fallback defaults if not set)
+# getting keys from .env
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 print("GEMINI_API_KEY from .env", GEMINI_API_KEY)
 print("FIREWORKS_API_KEY from .env", FIREWORKS_API_KEY)
 
-# Create a client for the Gemini API
+# create gemini api client
 client = OpenAI(
     api_key="",
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -49,7 +49,7 @@ def transcribe(filePath):
         text = dict_response["text"]
         segments = dict_response["segments"]
         words = dict_response["words"]
-        # Clean each word, keeping only "word", "start", and "end"
+        # clean each word, keeping only "word", "start", and "end"
         cleaned_words = []
         for word in words:
             cleaned_word = {
@@ -96,20 +96,20 @@ def generate_ffmpeg_trim_command(input_file, output_file, segments_to_remove):
         if i > 0 and start < segments_to_remove[i-1][1]:
             raise ValueError(f"Segments {i-1} and {i} overlap or are not in ascending order")
 
-    # Build FFmpeg filter_complex string
+    # build FFmpeg filter_complex string
     filter_parts = []
     segment_labels = []
-    # Extract audio from beginning to start of the first segment
+    # extract audio from beginning to start of the first segment
     filter_parts.append(f"[0:a]atrim=0:{segments_to_remove[0][0]}[s0]")
     segment_labels.append("[s0]")
-    # Extract audio between segments
+    # extract audio between segments
     for i in range(len(segments_to_remove) - 1):
         current_end = segments_to_remove[i][1]
         next_start = segments_to_remove[i+1][0]
         if current_end < next_start:
             filter_parts.append(f"[0:a]atrim={current_end}:{next_start}[s{i+1}]")
             segment_labels.append(f"[s{i+1}]")
-    # Extract the audio from the end of the last segment to the end of the file
+    # extract audio from the end of the last segment to the end of the file
     filter_parts.append(f"[0:a]atrim=start={segments_to_remove[-1][1]}[s{len(segments_to_remove)}]")
     segment_labels.append(f"[s{len(segments_to_remove)}]")
     concat_filter = f"{''.join(segment_labels)}concat=n={len(segment_labels)}:v=0:a=1[out]"
@@ -130,7 +130,7 @@ def find_phrases_timestamps(transcript_data, phrases):
     if isinstance(phrases, str):
         phrases = [phrases]
     
-    # Normalize transcript words
+    # normalise transcript words
     transcript_words = []
     for item in transcript_data:
         cleaned_word = item['word'].strip().lower().rstrip('.,:;!?')
@@ -143,7 +143,7 @@ def find_phrases_timestamps(transcript_data, phrases):
     results = []
     total_words = len(transcript_words)
     
-    # Look for each phrase as a sequence of words
+    # look for each phrase as a sequence of words
     for phrase in phrases:
         if not phrase:
             continue
@@ -165,7 +165,7 @@ def find_phrases_timestamps(transcript_data, phrases):
 def process_audio():
     """
     Expects a multipart/form-data POST with an audio file attached under the key "file".
-    It will process the file (transcribe -> extract ad segments -> remove those segments via FFmpeg)
+    It will process the file (transcribe -> extract ad segments -> find those segments' timestamps -> remove those segments via FFmpeg)
     and send back the cleaned audio file. Both input and output files are deleted afterward.
     """
     if "file" not in request.files:
@@ -174,25 +174,25 @@ def process_audio():
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    # Save the incoming file with a unique filename
+    # save the incoming file with a uuid to prevent conflics/overwrites
     filename = secure_filename(file.filename)
     unique_id = uuid.uuid4().hex
     input_file = unique_id + "_" + filename
     file.save(input_file)
 
-    # Define the output file name (appending _edited before the extension)
+    # define the output file name (appending _edited before the extension)
     base, ext = os.path.splitext(input_file)
     output_file = base + "_edited" + ext
 
     try:
-        # First, transcribe the audio file.
+        # firly, transcribe the audio file
         transcription_text, _, transcript_words = transcribe(input_file)
     except Exception as e:
         os.remove(input_file)
         return jsonify({"error": str(e)}), 500
 
     try:
-        # Use Gemini to extract advertisement segments.
+        # using gemini to extract advertisement segments
         phrases_str = geminiGetSegments(transcription_text)
         try:
             phrases = json.loads(phrases_str)
@@ -202,10 +202,10 @@ def process_audio():
         os.remove(input_file)
         return jsonify({"error": f"Error from Gemini: {str(e)}"}), 500
 
-    # Find the timestamps of the phrases in the transcript.
+    # find the timestamps of the phrases in the transcript
     matches = find_phrases_timestamps(transcript_words, phrases)
     
-    # If no matches found, simply copy the file (i.e. nothing to remove)
+    # if no matches found, simply copy the file (i.e. nothing to remove)
     if not matches:
         cmd = f'cp "{input_file}" "{output_file}"'
     else:
@@ -216,7 +216,7 @@ def process_audio():
             return jsonify({"error": f"Error generating FFmpeg command: {str(e)}"}), 500
 
     try:
-        # Execute the FFmpeg command to trim the segments.
+        # execute the FFmpeg command to trim the segments
         result = subprocess.run(cmd, shell=True, capture_output=True)
         if result.returncode != 0:
             os.remove(input_file)
@@ -226,7 +226,7 @@ def process_audio():
         return jsonify({"error": f"Error executing FFmpeg command: {str(e)}"}), 500
 
     try:
-        # Read the processed output file.
+        # read the processed output file
         with open(output_file, "rb") as f:
             audio_data = f.read()
     except Exception as e:
@@ -236,14 +236,18 @@ def process_audio():
             os.remove(output_file)
         return jsonify({"error": f"Error reading output file: {str(e)}"}), 500
 
-    # Cleanup: Delete both the input and output files from the working directory.
+    # cleanup: deleting both the input and output files from the working dir
     os.remove(input_file)
     os.remove(output_file)
+
+    # extract the original filename to then create a new filename from it and not return the uuid
+    original_base, _ = os.path.splitext(filename)
+    download_filename = original_base + "_edited.mp3"
 
     # Return the cleaned audio file.
     return send_file(
         BytesIO(audio_data),
-        download_name=output_file,
+        download_name=download_filename,
         as_attachment=True,
         mimetype="audio/mpeg"
     )
