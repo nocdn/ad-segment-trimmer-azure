@@ -1,1 +1,0 @@
-From the provided podcast transcript, please extract the entire ad segments, and put each segment into a plain text code block - but only the segment. If there are multiple ad segments, then there should be multiple code blocks.
