@@ -175,9 +175,11 @@ def process_audio():
         return jsonify({"error": "No selected file"}), 400
 
     # save the incoming file with a uuid to prevent conflics/overwrites
+    uploads_dir = "uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
     filename = secure_filename(file.filename)
     unique_id = uuid.uuid4().hex
-    input_file = unique_id + "_" + filename
+    input_file = os.path.join(uploads_dir, unique_id + "_" + filename)
     file.save(input_file)
 
     # define the output file name (appending _edited before the extension)
@@ -244,7 +246,7 @@ def process_audio():
     original_base, _ = os.path.splitext(filename)
     download_filename = original_base + "_edited.mp3"
 
-    # Return the cleaned audio file.
+    # return the cleaned audio file
     return send_file(
         BytesIO(audio_data),
         download_name=download_filename,
@@ -253,5 +255,4 @@ def process_audio():
     )
 
 if __name__ == "__main__":
-    # Run the Flask API on all interfaces.
-    app.run(debug=True, host="0.0.0.0")
+    app.run(debug=True, host="0.0.0.0", port=7070)

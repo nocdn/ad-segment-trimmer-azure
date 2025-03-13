@@ -13,7 +13,7 @@ print("GEMINI_API_KEY from .env ", GEMINI_API_KEY)
 print("FIREWORKS_API_KEY from .env ", FIREWORKS_API_KEY)
 
 client = OpenAI(
-    api_key="AIzaSyAS6cTzjhTN4SArysE3bFxch7ZJn4hGxg8",
+    api_key="",
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
 )
 
@@ -25,7 +25,7 @@ def transcribe(filePath):
     with open(filePath, "rb") as file:
         response = requests.post(
             "https://audio-prod.us-virginia-1.direct.fireworks.ai/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer fw_3Zf2eWpWZ5ayYuZG6R7UTcvR"},
+            headers={"Authorization": f"Bearer "},
             files={"file": file},
             data={
                 "vad_model": "silero",
