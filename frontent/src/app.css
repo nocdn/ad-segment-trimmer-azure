@@ -10,3 +10,23 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+@theme {
+  --color-lightest-gray: #fafafa;
+  --color-lightest-blue: #f8fbff;
+
+  --animate-left-right: animate-left-right 1.75s cubic-bezier(0.87, 0, 0.13, 1)
+    infinite;
+
+  @keyframes animate-left-right {
+    0% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(3px);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+}
