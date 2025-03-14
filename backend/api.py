@@ -5,10 +5,12 @@ import subprocess
 import requests
 from io import BytesIO
 from flask import Flask, request, send_file, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from openai import OpenAI
 from werkzeug.utils import secure_filename
-from flask_cors import CORS  # Import Flask-CORS
+from flask_cors import CORS
 
 load_dotenv()
 
@@ -20,6 +22,24 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 print("GEMINI_API_KEY from .env", GEMINI_API_KEY)
 print("FIREWORKS_API_KEY from .env", FIREWORKS_API_KEY)
+
+# getting rate limiting from .env
+RATE_LIMITING_ENABLED = os.environ.get("RATE_LIMITING_ENABLED")
+print("RATE_LIMITING_ENABLED from .env", RATE_LIMITING_ENABLED)
+
+if RATE_LIMITING_ENABLED == "true":
+    RATE_LIMIT = os.environ.get("RATE_LIMIT")
+    print("RATE_LIMIT from .env", RATE_LIMIT)
+else:
+    RATE_LIMIT = None
+    print("Rate limiting is disabled")
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["5 per day"],
+    storage_uri="memory://",
+)
 
 # create gemini api client
 client = OpenAI(
@@ -163,6 +183,7 @@ def find_phrases_timestamps(transcript_data, phrases):
     return results
 
 @app.route("/process", methods=["POST"])
+@limiter.limit(RATE_LIMIT)
 def process_audio():
     """
     Expects a multipart/form-data POST with an audio file attached under the key "file".

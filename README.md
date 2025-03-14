@@ -16,17 +16,16 @@ Whisper is billed at $0.0009 per audio minute (billed per second), and Gemini 2.
 
 1. Make sure you have an Gemini API key, as an environment variable called `GEMINI_API_KEY` in the `.env` file.
 2. Make sure you have a Fireworks AI API key, as an environment variable called `FIREWORKS_API_KEY` in the `.env` file.
-3. Build the Docker image:
+3. Set any rate limits you want in the `.env` file (optional).
+4. Build the and run the Docker image:
 
 ```bash
-docker build -t ad-segment-trimmer .
+docker compose up -d --build
 ```
 
-4. Run the Docker container:
+(the `-d` flag runs the container in detached mode, and the `--build` flag rebuilds the image if there are any changes)
 
-```bash
-docker run -d -p 7070:7070 --name ad-segment-trimmer ad-segment-trimmer
-```
+There now should be a frontend running at port `6030`, and the API running at port `7070`.
 
 To access the API, you can use the following curl command:
 
