@@ -23,17 +23,16 @@ print("FIREWORKS_API_KEY from .env", FIREWORKS_API_KEY)
 
 # create gemini api client
 client = OpenAI(
-    api_key="",
+    api_key=GEMINI_API_KEY,
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
 )
-
 
 def transcribe(filePath):
     """Calls the Fireworks transcription API and returns a tuple (transcription_text, segments, word-level transcript)."""
     with open(filePath, "rb") as file:
         response = requests.post(
             "https://audio-prod.us-virginia-1.direct.fireworks.ai/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer "},
+            headers={"Authorization": f"Bearer {FIREWORKS_API_KEY}"},
             files={"file": file},
             data={
                 "vad_model": "silero",
