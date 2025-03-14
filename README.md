@@ -12,20 +12,26 @@ A transcript is made with an API from Fireworks AI, running Whisper (specificall
 
 Whisper is billed at $0.0009 per audio minute (billed per second), and Gemini 2.0 Flash is billed at $0.40 per million output tokens ($0.0000004 per token), so for an hour long podcast, the process is billed at around 0.11 USD.
 
-### How to use it?
+### Usage (with Docker)
 
-1. Make sure you have an Gemini API key, as an environment variable called `GEMINI_API_KEY`.
-2. Make sure you have a Fireworks AI API key, as an environment variable called `FIREWORKS_API_KEY`.
-3. Install ffmpeg on the system you are running this on
-4. Start a new virtual environment with Python 3.10 or higher
-5. Install the requirements with `pip install -r requirements.txt` (or my preferred method, with uv: `uv pip install -r requirements.txt`)
-6. Run the script with `python api.py` (or any port)
-
-To test the API, you can use the following curl command:
+1. Make sure you have an Gemini API key, as an environment variable called `GEMINI_API_KEY` in the `.env` file.
+2. Make sure you have a Fireworks AI API key, as an environment variable called `FIREWORKS_API_KEY` in the `.env` file.
+3. Build the Docker image:
 
 ```bash
-curl -X POST http://127.0.0.1:7070/process \
-  -F "file=@audio.mp3"
+docker build -t ad-segment-trimmer .
 ```
 
-You should then see it return a summary of the transcript (the feature built in so far).
+4. Run the Docker container:
+
+```bash
+docker run -d -p 7070:7070 --name ad-segment-trimmer ad-segment-trimmer
+```
+
+To access the API, you can use the following curl command:
+
+```bash
+curl -F "file=@audio.mp3" -OJ http://localhost:7070/process
+```
+
+(replace `audio.mp3` with the path to your audio file, the -OJ flag will save the file with the returned name with the \_edited suffix)
