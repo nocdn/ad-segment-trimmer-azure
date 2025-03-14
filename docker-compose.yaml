@@ -1,0 +1,26 @@
+version: "3"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    env_file:
+      - .env
+    restart: always
+    ports:
+      - "7070:7070"
+
+  frontend:
+    build:
+      context: ./frontent
+    ports:
+      - "6030:6030"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  uploads_data:

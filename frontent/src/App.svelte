@@ -47,7 +47,7 @@
 
     try {
       // Change the URL below to your API's address if needed
-      const response = await fetch("http://localhost:7070/process", {
+      const response = await fetch("/process", {
         method: "POST",
         body: formData,
       });
