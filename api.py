@@ -8,10 +8,12 @@ from flask import Flask, request, send_file, jsonify
 from dotenv import load_dotenv
 from openai import OpenAI
 from werkzeug.utils import secure_filename
+from flask_cors import CORS  # Import Flask-CORS
 
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
 # getting keys from .env
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
