@@ -7,6 +7,7 @@
   let downloadUrl = $state("");
   let errorMsg = $state("");
   let completed = $state(false);
+  let rateLimited = $state(false);
 
   // When a file is dragged over the dropzone, prevent default behavior
   function dragOver(event) {
@@ -54,6 +55,12 @@
         method: "POST",
         body: formData,
       });
+
+      if (response.status === 429) {
+        rateLimited = true;
+        file = null;
+        return;
+      }
 
       if (!response.ok) {
         errorMsg = `Error: ${response.status} ${response.statusText}`;
@@ -107,6 +114,9 @@
         <p class="text-sm text-gray-500">
           {calculateHumanReadableSize(file.size)} / 1GB
         </p>
+      {:else if rateLimited}
+        <p class="font-semibold text-orange-700">Rate limit reached</p>
+        <p class="text-sm text-gray-500">try again later</p>
       {:else if !completed}
         <p>Drop an audio file here, or click to select one.</p>
       {:else}
