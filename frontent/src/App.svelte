@@ -8,6 +8,9 @@
   let errorMsg = $state("");
   let completed = $state(false);
   let rateLimited = $state(false);
+  let duration = $state(0);
+  let processingTime = $state(null);
+  let showExample = $state(false);
 
   // When a file is dragged over the dropzone, prevent default behavior
   function dragOver(event) {
@@ -35,6 +38,13 @@
     const files = event.target.files;
     if (files && files.length > 0) {
       file = files[0];
+      const url = URL.createObjectURL(file);
+      const audio = new Audio(url);
+
+      audio.addEventListener("loadedmetadata", () => {
+        duration = audio.duration;
+        console.log("Audio duration:", duration);
+      });
     }
   }
 
@@ -45,6 +55,9 @@
     uploading = true;
     errorMsg = "";
     downloadUrl = "";
+    processingTime = null;
+
+    const startTime = performance.now();
 
     const formData = new FormData();
     formData.append("file", file);
@@ -55,6 +68,10 @@
         method: "POST",
         body: formData,
       });
+
+      const endTime = performance.now();
+      processingTime = ((endTime - startTime) / 1000).toFixed(2);
+      console.log(`Processing completed in ${processingTime} seconds`);
 
       if (response.status === 429) {
         rateLimited = true;
@@ -72,6 +89,9 @@
         completed = true;
       }
     } catch (err) {
+      const endTime = performance.now();
+      processingTime = ((endTime - startTime) / 1000).toFixed(2);
+      console.log(`Processing failed after ${processingTime} seconds`);
       errorMsg = "Error: " + err;
     } finally {
       uploading = false;
@@ -92,10 +112,10 @@
 </script>
 
 <main class="flex flex-col gap-4 items-center justify-center min-h-screen">
-  <container class="w-64 flex flex-col gap-3">
+  <container class="w-xs flex flex-col gap-3">
     <p class="text-center font-semibold">Ad segment trimmer</p>
     <button
-      class="w-64 h-36 rounded-2xl border-dotted font-mono p-4 grid place-content-center text-center cursor-pointer hover:bg-lightest-gray transition-colors
+      class="w-xs h-36 rounded-2xl border-dotted font-mono p-4 grid place-content-center text-center cursor-pointer hover:bg-lightest-gray transition-colors
       {isDragging
         ? 'border-blue-500 border-3'
         : file
@@ -179,4 +199,46 @@
   {#if errorMsg}
     <p style="color:red;">{errorMsg}</p>
   {/if}
+
+  <section class="mt-8 w-full max-w-xs flex flex-col justify-center">
+    <a
+      class="text-center font-semibold mb-5 cursor-pointer"
+      onclick={() => {
+        showExample = !showExample;
+      }}
+    >
+      {showExample ? "Hide" : "Show"} example
+    </a>
+    {#if showExample}
+      <div class="flex flex-col gap-4">
+        <div>
+          <p class="text-sm text-gray-600 mb-1 font-mono text-center">
+            Original:
+          </p>
+          <audio
+            controls
+            class="w-full border border-gray-200 rounded-xl [&::-webkit-media-controls-enclosure]:rounded-none"
+          >
+            <source src="/OpenAI_Is_Getting_Desperate.mp3" type="audio/mpeg" />
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+        <div>
+          <p class="text-sm text-gray-600 mb-1 font-mono text-center">
+            ads removed:
+          </p>
+          <audio
+            controls
+            class="w-full border border-gray-200 rounded-xl [&::-webkit-media-controls-enclosure]:rounded-none"
+          >
+            <source
+              src="/OpenAI_Is_Getting_Desperate_edited.mp3"
+              type="audio/mpeg"
+            />
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      </div>
+    {/if}
+  </section>
 </main>
