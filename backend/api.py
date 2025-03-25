@@ -83,6 +83,46 @@ def transcribe(filePath):
     else:
         raise Exception(f"Transcription API error: {response.status_code}, {response.text}")
 
+def transcribe_azure(filePath):
+    """Calls the Azure transcription API and returns a tuple (transcription_text, segments, word-level transcript)."""
+    with open(filePath, "rb") as file:
+        azure_response = requests.post(
+            "https://ai-adsegmenttrimmerhub339143542487.cognitiveservices.azure.com/speechtotext/transcriptions:transcribe?api-version=2024-11-15",
+            headers={
+                "Ocp-Apim-Subscription-Key": "AwYMyrBC7G4IHuaLrMiTSzapgK0HDofbNxwF6oEnrea0i2v6G9vtJQQJ99BCACHYHv6XJ3w3AAAAACOGK4QT",
+                # Remove the Content-Type header - requests will set it correctly with boundary
+            },
+            files={"audio": file},
+            data={"definition": json.dumps({"locales": ["en-US"]})}
+        )
+    
+    if azure_response.status_code == 200:
+        dict_response = azure_response.json()
+        
+        # Extract full transcript from combinedPhrases
+        full_text = " ".join([phrase["text"] for phrase in dict_response["combinedPhrases"]])
+        
+        # Use phrases as segments
+        segments = dict_response["phrases"]
+        
+        # Extract and format word-level transcript
+        cleaned_words = []
+        for phrase in dict_response["phrases"]:
+            for word in phrase["words"]:
+                # Convert milliseconds to seconds for consistency with Fireworks API
+                start_time = word["offsetMilliseconds"] / 1000
+                end_time = start_time + (word["durationMilliseconds"] / 1000)
+                
+                cleaned_words.append({
+                    "word": word["text"],
+                    "start": start_time,
+                    "end": end_time
+                })
+        
+        return full_text, segments, cleaned_words
+    else:
+        raise Exception(f"Azure Transcription API error: {azure_response.status_code}, {azure_response.text}")
+
 def geminiGetSegments(transcriptionText):
     """
     Uses the Gemini API to extract advertisement segments from the transcript.
@@ -201,6 +241,7 @@ def process_audio():
     os.makedirs(uploads_dir, exist_ok=True)
     filename = secure_filename(file.filename)
     unique_id = uuid.uuid4().hex
+    print("processing file with uuid", unique_id, "and filename", filename)
     input_file = os.path.join(uploads_dir, unique_id + "_" + filename)
     file.save(input_file)
 
@@ -210,7 +251,8 @@ def process_audio():
 
     try:
         # firly, transcribe the audio file
-        transcription_text, _, transcript_words = transcribe(input_file)
+        print("transcribing file")
+        transcription_text, _, transcript_words = transcribe_azure(input_file)
     except Exception as e:
         os.remove(input_file)
         return jsonify({"error": str(e)}), 500
@@ -220,6 +262,7 @@ def process_audio():
         phrases_str = geminiGetSegments(transcription_text)
         try:
             phrases = json.loads(phrases_str)
+            print("gemini found phrases\n", phrases)
         except json.JSONDecodeError:
             phrases = []
     except Exception as e:
@@ -228,6 +271,7 @@ def process_audio():
 
     # find the timestamps of the phrases in the transcript
     matches = find_phrases_timestamps(transcript_words, phrases)
+    print("matches\n", matches)
     
     # if no matches found, simply copy the file (i.e. nothing to remove)
     if not matches:
@@ -277,4 +321,14 @@ def process_audio():
     )
 
 if __name__ == "__main__":
+    # print("trying azure transcription")
+    # transcription_text, segments, transcript_words = transcribe_azure("azuretest.mp3")
+    # print("\n\n\n\n\n\n\ntranscription_text", transcription_text)
+    # print("\n\n\n\n\n\n\nsegments", segments)
+    # print("\n\n\n\n\n\n\ntranscript_words", transcript_words)
+
+    # transcription_text, segments, transcript_words = transcribe("azuretest.mp3")
+    # print("\n\n\n\n\n\n\nfireworks transcription_text", transcription_text)
+    # print("\n\n\n\n\n\n\nfireworks segments", segments)
+    # print("\n\n\n\n\n\n\nfireworks transcript_words", transcript_words)
     app.run(debug=True, host="0.0.0.0", port=7070)
