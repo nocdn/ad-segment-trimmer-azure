@@ -11,6 +11,7 @@
   let duration = $state(0);
   let processingTime = $state(null);
   let showExample = $state(false);
+  let originalFileName = $state(""); // Store the original filename
 
   // When a file is dragged over the dropzone, prevent default behavior
   function dragOver(event) {
@@ -30,6 +31,7 @@
     isDragging = false;
     if (event.dataTransfer.files.length) {
       file = event.dataTransfer.files[0];
+      originalFileName = file.name; // Save the original filename
     }
   }
 
@@ -38,6 +40,7 @@
     const files = event.target.files;
     if (files && files.length > 0) {
       file = files[0];
+      originalFileName = file.name; // Save the original filename
       const url = URL.createObjectURL(file);
       const audio = new Audio(url);
 
@@ -166,13 +169,13 @@
         {#if downloadUrl}
           <!-- When processed, show a download button -->
           <a
-            download={file
-              ? file.name.replace(/\.[^/.]+$/, "_edited.mp3")
+            download={originalFileName
+              ? originalFileName.replace(/\.[^/.]+$/, "_edited.mp3")
               : "edited.mp3"}
             href={downloadUrl}
           >
             <button
-              class="curpor-pointer flex items-center gap-2.5 text-blue-800"
+              class="cursor-pointer flex items-center gap-2.5 text-blue-800"
             >
               Download <Download size={16} strokeWidth={2.5} /></button
             >
@@ -201,7 +204,10 @@
   {/if}
 
   <section class="mt-8 w-full max-w-xs flex flex-col justify-center">
+    <!-- svelte-ignore a11y_invalid_attribute -->
     <a
+      href="#"
+      aria-label="Show example"
       class="text-center font-semibold mb-5 cursor-pointer"
       onclick={() => {
         showExample = !showExample;
