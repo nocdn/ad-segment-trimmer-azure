@@ -23,6 +23,12 @@ FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 print("GEMINI_API_KEY from .env", GEMINI_API_KEY)
 print("FIREWORKS_API_KEY from .env", FIREWORKS_API_KEY)
 
+# azure keys from .env
+AI_SPEECH_RESOURCE_ENDPOINT = os.environ.get("AI_SPEECH_RESOURCE_ENDPOINT")
+AI_SPEECH_PRIMARY_KEY = os.environ.get("AI_SPEECH_PRIMARY_KEY")
+print("AI_SPEECH_RESOURCE_ENDPOINT from .env", AI_SPEECH_RESOURCE_ENDPOINT)
+print("AI_SPEECH_PRIMARY_KEY from .env", AI_SPEECH_PRIMARY_KEY)
+
 # getting rate limiting from .env
 RATE_LIMITING_ENABLED = os.environ.get("RATE_LIMITING_ENABLED")
 print("RATE_LIMITING_ENABLED from .env", RATE_LIMITING_ENABLED)
@@ -87,9 +93,9 @@ def transcribe_azure(filePath):
     """Calls the Azure transcription API and returns a tuple (transcription_text, segments, word-level transcript)."""
     with open(filePath, "rb") as file:
         azure_response = requests.post(
-            "https://ai-adsegmenttrimmerhub339143542487.cognitiveservices.azure.com/speechtotext/transcriptions:transcribe?api-version=2024-11-15",
+            AI_SPEECH_RESOURCE_ENDPOINT,
             headers={
-                "Ocp-Apim-Subscription-Key": "AwYMyrBC7G4IHuaLrMiTSzapgK0HDofbNxwF6oEnrea0i2v6G9vtJQQJ99BCACHYHv6XJ3w3AAAAACOGK4QT",
+                "Ocp-Apim-Subscription-Key": AI_SPEECH_PRIMARY_KEY,
                 # Remove the Content-Type header - requests will set it correctly with boundary
             },
             files={"audio": file},
