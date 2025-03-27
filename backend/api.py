@@ -56,8 +56,6 @@ client = AzureOpenAI(
     api_version=AZURE_API_VERSION,
 )
 logging.debug("initialized Azure OpenAI client")
-
-def transcribe(filePath):
     """
     calls the fireworks transcription api and returns a tuple (transcription_text, segments, word-level transcript)
     """
